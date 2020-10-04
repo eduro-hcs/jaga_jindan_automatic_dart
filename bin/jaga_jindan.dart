@@ -6,18 +6,21 @@ import 'package:eduro_poc_dart/rsa_encrypt.dart';
 import 'package:http/http.dart' as http;
 
 void main() async {
-  String jwt = jsonDecode((await http.post(
-          'https://penhcs.eduro.go.kr/loginwithschool',
-          body: jsonEncode({
-            'birthday': encrypt(credentials['birthday']),
-            'name': encrypt(credentials['name']),
-            'orgcode': credentials['orgCode']
-          }),
-          headers: {'Content-Type': 'application/json'},
-          encoding: Encoding.getByName('utf-8')))
-      .body)['token'];
+  String jwt =
+      jsonDecode((await http.post('https://penhcs.eduro.go.kr/v2/findUser',
+              body: jsonEncode({
+                'birthday': encrypt(credentials['birthday']),
+                'loginType': 'school',
+                'name': encrypt(credentials['name']),
+                'orgCode': credentials['orgCode'],
+                'stdntPNo': null,
+                'X-Requested-With': 'XMLHttpRequest'
+              }),
+              headers: {'Content-Type': 'application/json'},
+              encoding: Encoding.getByName('utf-8')))
+          .body)['token'];
 
-  if ((await http.post('https://penhcs.eduro.go.kr/checkpw',
+  if ((await http.post('https://penhcs.eduro.go.kr/v2/hasPassword',
               body: jsonEncode({}),
               headers: {
             'Authorization': jwt,
@@ -29,36 +32,40 @@ void main() async {
     exit(0);
   }
 
-  if (jsonDecode((await http.post('https://penhcs.eduro.go.kr/secondlogin',
-              body: jsonEncode({'deviceUuid': '', 'password': encrypt(credentials['password'])}),
+  if ((await http.post(
+              'https://penhcs.eduro.go.kr/v2/validatePassword',
+              body: jsonEncode({
+                'deviceUuid': '',
+                'password': encrypt(credentials['password'])
+              }),
               headers: {
             'Authorization': jwt,
             'Content-Type': 'application/json'
-          }))
-          .body)['isError'] ==
-      true) {
-    print('비밀번호를 잘못 입력했습니다.');
-    exit(0);
+          })).body != 'true') {
+    print('비밀번호를 잘못 입력했거나 로그인 시도 횟수를 초과했습니다.');
+    exit(0); //해당 부분을 주석 처리하면 비밀번호와 관계없이 설문이 가능합니다..
   }
 
   var users = jsonDecode((await http.post(
-          'https://penhcs.eduro.go.kr/selectGroupList',
+          'https://penhcs.eduro.go.kr/v2/selectUserGroup',
           body: jsonEncode({}),
           headers: {'Authorization': jwt, 'Content-Type': 'application/json'}))
       .body);
 
-  jwt = users['groupList'][0]['token'];
+  jwt = users[0]['token'];
 
-  var userNo = int.parse(users['groupList'][0]['userPNo']);
-  String org = users['groupList'][0]['orgCode'];
+  var userNo = int.parse(users[0]['userPNo']);
+  String org = users[0]['orgCode'];
 
-  jwt = jsonDecode((await http.post('https://penhcs.eduro.go.kr/userrefresh',
+  jwt = jsonDecode((await http.post('https://penhcs.eduro.go.kr/v2/getUserInfo',
           body: jsonEncode({'userPNo': userNo, 'orgCode': org}),
           headers: {'Authorization': jwt, 'Content-Type': 'application/json'}))
-      .body)['UserInfo']['token'];
+      .body)['token'];
 
   var res = await http.post('https://penhcs.eduro.go.kr/registerServey',
       body: jsonEncode({
+        'deviceUuid': '',
+        'rspns00': 'Y',
         'rspns01': '1',
         'rspns02': '1',
         'rspns03': null,
@@ -74,8 +81,8 @@ void main() async {
         'rspns13': null,
         'rspns14': null,
         'rspns15': null,
-        'rspns00': 'Y',
-        'deviceUuid': ''
+        'upperToken': jwt,
+        'upperUserNameEncpt': credentials['name']
       }),
       headers: {'Authorization': jwt, 'Content-Type': 'application/json'});
 
