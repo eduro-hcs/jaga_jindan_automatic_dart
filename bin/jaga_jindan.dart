@@ -13,8 +13,7 @@ void main() async {
                 'loginType': 'school',
                 'name': encrypt(credentials['name']),
                 'orgCode': credentials['orgCode'],
-                'stdntPNo': null,
-                'X-Requested-With': 'XMLHttpRequest'
+                'stdntPNo': null
               }),
               headers: {'Content-Type': 'application/json'},
               encoding: Encoding.getByName('utf-8')))
